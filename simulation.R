@@ -12,10 +12,10 @@ nPop = 10000
 nNew = nRemove = 100 
 nOrg = 1000
 mu = 0
-varNames = c("Performance", "Predictor", "HC")
+varNames = c("Performance", "Predictor")
 testValidity = .4
 changeValidity = 0
-sdPerf = sdPred = sdExtra = 1
+sdPerf = sdPred = 1
 startYear = 2017
 years = 50
 attritionRate = 0.10
@@ -23,13 +23,32 @@ applicantsPerPosition = 10
 changePoint = years/2
 
 test = runSimulation(nPop = nPop, nNew = nNew, nOrg = nOrg,
-                     testValidity = 0.5, corUnrelVar = 0.3,
-                     startYear = startYear, years = years,
-                     attritionRate = attritionRate, 
-                     applicantsPerPosition = applicantsPerPosition,
-                     changedTestValidity = 0.7,
+                     testValidity = 0.5, startYear = startYear, 
+                     years = years, attritionRate = attritionRate, 
+                     applicantsPerPosition = applicantsPerPosition)
+                     changedTestValidity = 0.1,
                      changePoint = 10)
 
+
+runManySimulations = function(nRep, setSeeds){
+  for(idxnRep in 1:nRep){
+  set.seed(setSeeds[idxnRep])
+  
+    runSimulation(nPop = nPop, nNew = nNew, nOrg = nOrg,
+                  testValidity = 0.5, startYear = startYear, 
+                  years = years, attritionRate = attritionRate, 
+                  applicantsPerPosition = applicantsPerPosition,
+                  changedTestValidity = 0.1, changePoint = 10)
+  
+  
+}
+  
+}
+
+
+
+
+plot(unlist(sapply(sapply(test$PerfOrg, coef), function(x){x[[2]]})))
 
 plot(unlist(test$CohenD))
 

@@ -32,32 +32,31 @@ updatePopulation = function(pop, nNew, nRemove, mu, Sigma, nTest, emperical = FA
 # https://stats.stackexchange.com/questions/15011/generate-a-random-variable-with-a-defined-correlation-to-an-existing-variables
 # returns a data frame of two variables which correlate with a population correlation of rho
 # If desired, one of both variables can be fixed to an existing variable by specifying x
-getBiCop <- function(dat, rho, nTest) {
-  n = nrow(dat)
-  X1 = dat$Predictor
-  X3 = dat$HC
-  mean1 = mean(dat$Performance)
-  sd1 = sd(dat$Performance)
+getBiCop <- function(data, rho) {
+  n = nrow(data)
+  X1 = data$Predictor
+  mean1 = mean(data$Performance)
+  sd1 = sd(data$Performance)
   
-  C = rho
-  
+  C =  matrix(rho, nrow = 2, ncol = 2)
+  diag(C) <- 1
   
   C <- chol(C)
   
   X2 <- rnorm(n, mean = mean1, sd = sd1)
-  X <- cbind(X1,X2,X3)
+  X <- cbind(X1,X2)
   
   # induce correlation (does not change X1)
-  df <- X %*% C
+  newData <- X %*% C
   
   ## if desired: check results
   # all.equal(X1,X[,1])
   # cor(X)
-  cor(df)
   
-  return(df)
+  data[,1:2] = newData
+  
+  return(newData)
 }
-
 
 getTriCop = function(dat, desiredCorrelations){
   n = nrow(dat)
@@ -73,13 +72,6 @@ getTriCop = function(dat, desiredCorrelations){
   # cor(y)      # Desired correlation matrix
   return(y)
 }
-
-apply(dat, 2, summary)
-apply(y, 2, summary)
-
-
-
-
 
 simCorData = function(pop, rho, x1, mu, sd){
 
@@ -106,7 +98,27 @@ if(cor(x1, x) == rho){
 
 
 
-
+updatePerformance = function(data, rho) {
+  n = nrow(data)
+  X1 = data$Predictor
+  mean1 = mean(data$Performance)
+  sd1 = sd(data$Performance)
+  
+  C =  matrix(rho, nrow = 2, ncol = 2)
+  diag(C) <- 1
+  
+  C <- chol(C)
+  
+  X2 <- rnorm(n, mean = mean1, sd = sd1)
+  X <- cbind(X1,X2)
+  
+  # induce correlation (does not change X1)
+  newData <- X %*% C
+  
+  data[,1:2] = newData
+  
+  return(newData)
+}
 
 
 
@@ -176,6 +188,8 @@ spreadMeasuresOrg = rbind(apply(org[,varNames], 2, mean),
                           apply(org[,varNames], 2, sd))
 rownames(spreadMeasuresPop) = rownames(spreadMeasuresOrg) = c("Mean", "SD")
 
+
+
 lSM[[1]] = cbind(spreadMeasuresPop, spreadMeasuresOrg)
 
 lHCResults[[1]] = resultsHC
@@ -201,10 +215,10 @@ for(idxYear in seq(years)){
                          nTest = 3, mu = mu, Sigma = covMat)
   
   # Compute new correlated performance for the population
-  predNewPop = getTriCop(dat = pop, desiredCorrelations = corMat)
+  predNewPop = updatePerformance(dat = pop, rho = corMat[1:2,1:2])
   
   # Compute new correlated performance for the organization
-  predNewOrg = getTriCop(org, desiredCorrelations = corMat)
+  predNewOrg = updatePerformance(org, rho = corMat[1:2,1:2])
 
   pop$Performance = predNewPop[,2]
   org$Performance = predNewOrg[,2]
@@ -214,8 +228,9 @@ for(idxYear in seq(years)){
   applicants = pop[applicantRows,]
   
   # coefficients within the organization
-  predictedPerformance = coef(glm(Performance~Predictor, data = org))[1] +
-    coef(glm(Performance~Predictor, data = org))[2] * applicants$Predictor
+  predictedPerformance = 
+    colSums(coef(glm(Performance ~ Predictor, data = org)) *
+    rbind(1, applicants$Predictor))
   
   # determine top estimated performers
   topApplicants = order(predictedPerformance, decreasing = T)[1 : (nOrg * attritionRate)]
@@ -231,7 +246,7 @@ for(idxYear in seq(years)){
   pop = pop[-applicantRows[topApplicants], ] # remove selected applicants from population
   
   test = rbind(cbind(pop, org = 0),
-               cbind(org[,3:5], org = 1))
+               cbind(org[,3:6], org = 1))
   resultsTemp = glm(Performance~org, data = test)
   lRegResults[[length(lRegResults) + 1]] = resultsTemp
   lCohdResults[[length(lCohdResults) + 1]] = cohen.d(Performance~as.factor(org), 
